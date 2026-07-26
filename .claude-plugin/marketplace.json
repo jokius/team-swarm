@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "team-swarm",
+  "description": "Agent-team orchestration for Claude Code: lead + isolated parallel teammates, TDD or fan-out.",
+  "owner": {
+    "name": "jokius",
+    "url": "https://github.com/jokius"
+  },
+  "plugins": [
+    {
+      "name": "team-swarm",
+      "description": "Lead + parallel teammates with role isolation. TDD mode for new behaviour, fan-out mode for wide mechanical refactors.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

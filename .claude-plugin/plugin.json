@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "team-swarm",
+  "version": "1.0.0",
+  "description": "Assembles a real Claude Code agent team: a lead plus parallel teammates with isolated roles. TDD mode (tester/developer/reviewer, tests-vs-src isolation) for new behaviour, fan-out mode (domain workers, one owner per file) for wide mechanical refactors.",
+  "author": {
+    "name": "jokius",
+    "url": "https://github.com/jokius"
+  },
+  "homepage": "https://github.com/jokius/team-swarm",
+  "repository": "https://github.com/jokius/team-swarm",
+  "license": "MIT",
+  "keywords": ["agent-teams", "swarm", "multi-agent", "tdd", "refactoring", "orchestration"],
+  "skills": ["./"],
+  "userConfig": {
+    "nudge": {
+      "type": "string",
+      "title": "Remind Claude to use team-swarm",
+      "description": "Reminder injected on work-shaped prompts. smart — remind until the skill runs in this session (recommended); always — every prompt; off — never.",
+      "default": "off"
+    }
+  }
+}
