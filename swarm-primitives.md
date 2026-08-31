@@ -11,9 +11,11 @@
 | `TeamCreate` / `TeamDelete` | Ничем: команда неявная, живёт с сессией |
 | `TaskCreate` / `TaskUpdate` / `TaskList` / `TaskGet` (общий task-лист) | План лида, который он ведёт сам, + назначения в спавн-промптах + отчёты через `SendMessage` |
 | `TodoWrite` | Тем же планом лида. На актуальных моделях инструмент выключен по умолчанию — не рассчитывай на него |
-| Двухтактный shutdown (`shutdown_request` → `shutdown_response`) как способ лида гасить teammates | `TaskStop(<name>)` — мгновенно, без подтверждений. Протокол остался только как legacy: teammate, ПОЛУЧИВШИЙ `shutdown_request`, обязан ответить `shutdown_response{approve:true}` |
+| Двухтактный shutdown (`shutdown_request` → `shutdown_response`) | `TaskStop(<name>)` — мгновенно, без подтверждений |
+| `TaskOutput` (помечен DEPRECATED) | Ничем: teammate отчитывается сам через `SendMessage`, читать его вывод не нужно |
+| Параметры `Agent`: `team_name`, `mode` (Deprecated, игнорируются), `run_in_background` (из схемы убран) | Не передавай ни один. Фон — дефолт, команда неявная, режим прав наследуется |
 
-`TaskStop` / `TaskOutput` — это управление **фоновыми задачами**, не task-лист. Не путай с убранным `Task*`-семейством.
+`TaskStop` — это управление **фоновым агентом**, не task-лист. Не путай с убранным `Task*`-семейством.
 
 ## Setup / teardown
 
@@ -28,7 +30,7 @@ Agent({
   prompt: "<role brief from role-briefs.md — задача целиком внутри>"
 })
 ```
-Спавн — это инструмент **`Agent`**. Имя из `name` — то, по которому к teammate обращаются в `SendMessage` и `TaskStop`. Параметр `team_name` (как и `mode`) помечен Deprecated и игнорируется. `run_in_background` передавать не нужно: фон — дефолт, и в схеме `Agent` этого параметра уже нет. `Agent` возвращает `agent_id` (формат `<name>@session-...`) и `name`.
+Спавн — это инструмент **`Agent`**. Имя из `name` — то, по которому к teammate обращаются в `SendMessage` и `TaskStop`. Ничего сверх показанного не передавай — устаревшие параметры перечислены в таблице выше. `Agent` возвращает `agent_id` (формат `<name>@session-...`) и `name`.
 
 Опции, которые иногда стоят того:
 - `subagent_type: "fork"` — наследует полный контекст lead'а. Только для `reviewer`; для `tester`/`developer` это пробой изоляции.
@@ -82,7 +84,7 @@ Teammate после каждого хода уходит в idle и шлёт а�
 Когда teammate шлёт DM другому teammate (или в main), краткое резюме этого DM приходит lead'у в idle-уведомлении отправителя (`summary: "[to X] ..."`). Отвечать на эти резюме не обязательно.
 
 ### Завершение этапа
-Teammate прислал финальный отчёт → lead делает `TaskStop(<name>)`. Ждать подтверждений не нужно. Legacy-протокол `shutdown_request`/`shutdown_response` lead больше НЕ инициирует; упоминание в брифах оставлено только на случай, если teammate получит такой JSON со стороны.
+Teammate прислал финальный отчёт → lead делает `TaskStop(<name>)`. Ждать подтверждений не нужно.
 
 ## Discovery team-состава
 Отдельного объекта команды и `config.json` нет. Состав смотрится через **`ListAgents`** — он показывает имя каждого teammate, его тип и статус (running / idle), а также сессии-соседи. Резюме активных фоновых агентов видно и в UI (`/agents` / `/tasks`). Для коммуникации используем `name`, не `agentId`.
