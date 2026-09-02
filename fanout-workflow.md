@@ -11,7 +11,6 @@ Runbook **Workflow-бэкенда** режима B. Ты читаешь этот
 1. **Режь на disjoint-участки.** Множества файлов участков **не пересекаются** — это и есть анти-гонка (в Workflow агенты пишут реально параллельно, разводит их именно непересечение наборов). Каждый участок = `{ name, files:[...], instructions }`.
 2. **Выдели shared/lead-зону.** Файлы, которые трогает несколько участков (точки сборки/DI `cmd/*`, корень рефакторимого пакета, общие контракты), **не отдаются ни одному агенту** — их правит lead на интеграции, после скрипта.
 3. **Напиши контракт.** `specs/contract.md` (или строкой): единые имена/расположение/сигнатуры + паттерн правки + **один эталонный пример «до/после»**. Это единственный источник правды по стилю.
-4. **Выбери модели стадий** по рубрике `SKILL.md → «Выбор модели под роль»`. Дефолт fan-out: apply — `haiku` (контракт дословный, есть эталон), review — `sonnet`. Участку, которому нужен `opus`, обычно нужен не `opus`, а другая нарезка. Передаются через `args` (`applyModel` / `reviewModel`), точечно — полем `model` у самого участка. Объяви выбор одной строкой рядом с планом, до запуска скрипта.
 
 ## Скрипт
 
@@ -27,13 +26,8 @@ export const meta = {
   ],
 }
 
-const sectors  = args.sectors    // [{ name, files:[...], instructions, model? }] — files НЕ пересекаются между участками
+const sectors  = args.sectors    // [{ name, files:[...], instructions }] — files НЕ пересекаются между участками
 const CONTRACT = args.contract   // текст контракта ИЛИ путь specs/contract.md
-
-// Модели стадий. Без них агенты наследуют модель лида — на механической правке это чистый перерасход.
-// Рубрика: SKILL.md → «Выбор модели под роль». Участок может перебить apply-модель своим полем model.
-const APPLY_MODEL  = args.applyModel  || 'haiku'
-const REVIEW_MODEL = args.reviewModel || 'sonnet'
 
 const APPLY_SCHEMA = {
   type: 'object',
@@ -80,8 +74,7 @@ const results = await pipeline(
       `- Перед завершением убедись, что твой участок компилируется локально.`,
       `Верни структурой APPLY_SCHEMA.`,
     ].join('\n'),
-    { label: `apply:${s.name}`, phase: 'Apply', schema: APPLY_SCHEMA,
-      model: s.model || APPLY_MODEL, effort: 'low' }
+    { label: `apply:${s.name}`, phase: 'Apply', schema: APPLY_SCHEMA }
   ).catch(() => null),
 
   // Stage 2 — Review. Сигнатура поздних стадий: (prevResult, originalItem, index).
@@ -104,7 +97,7 @@ const results = await pipeline(
             `в Workflow-бэкенде ролей-получателей нет, любой REJECT возвращается apply-агенту ЭТОГО участка.`,
             `Верни структурой REVIEW_SCHEMA.`,
           ].join('\n'),
-          { label: `review:${s.name}`, phase: 'Review', schema: REVIEW_SCHEMA, model: REVIEW_MODEL }
+          { label: `review:${s.name}`, phase: 'Review', schema: REVIEW_SCHEMA }
           // опц.: agentType под ревью — см. прозу ниже, не в шаблоне
         ).then((v) => ({ sector: s.name, applied, review: v }))
 )
@@ -117,14 +110,14 @@ return results
 Вызов (lead, его main loop):
 
 ```
-Workflow({ script: "<скрипт выше>", args: { sectors, contract, applyModel: "haiku", reviewModel: "sonnet" } })
+Workflow({ script: "<скрипт выше>", args: { sectors, contract } })
 ```
 
 > Скрипт можно сохранить как именованный workflow и звать `Workflow({ name: "fanout-refactor", args: {...} })`. Итерации — правь файл скрипта и зови с `scriptPath`/`resumeFromRunId` (см. описание инструмента Workflow).
 >
 > **Reviewer agentType.** Если стоит `compound-engineering` и участок того стоит — review-стадии можно дать `agentType: 'compound-engineering:review:ce-<...>'` в опциях `agent()` (например `ce-security-sentinel`). По умолчанию — дефолтный субагент.
 >
-> **Цена стадий.** `agent()` принимает `model` и `effort` — оба уже проставлены в шаблоне (apply: `haiku` + `effort: 'low'`, review: `sonnet`). В отличие от `Agent`, у `agent()` есть `effort` — им регулируется глубина рассуждения на выбранной модели, не сама модель. Рубрика выбора — `SKILL.md → «Выбор модели под роль»`.
+> **Цена стадий.** `agent()` принимает `model` и `effort` — механическую apply-стадию можно удешевить (`effort: 'low'`), а ревью оставить на дефолте или поднять.
 
 ## Что делает lead ПОСЛЕ возврата скрипта (интеграция, в своём контексте)
 
@@ -135,7 +128,7 @@ Workflow({ script: "<скрипт выше>", args: { sectors, contract, applyMo
 3. **Обработай `shared_file_needs[]` и shared/lead-зону.** Все запросы воркеров на чужие файлы + точки сборки/DI/корень пакета — правит **lead**, последовательно, в реальном дереве.
 4. **Гейт.** Прогони **полную сборку + существующие тесты** (+ линтер, если настроен). Это гейт качества fan-out вместо RED/GREEN. ⚠️ Учти: твои собственные shared-правки (п.3) не проходили per-участок ревью — под ними только сборка и тесты; при риске прогони отдельный review субагентом через `Agent` (внутри main loop лида хука `agent()` нет — он существует только в теле Workflow-скрипта).
 5. **Обработай REJECT'ы и упавшие участки:**
-   - Точечный REJECT / `failed` по одному участку → догони одним `agent()` на этот участок (или мини-`Workflow` по подмножеству) с issues в промпте, **на ступень выше** apply-модели (`haiku`→`sonnet`, `sonnet`→`opus`): участок уже показал, что дешёвой модели не хватило. Один подъём на участок; не помогло — разбирайся сам или иди к пользователю.
+   - Точечный REJECT / `failed` по одному участку → догони одним `agent()` на этот участок (или мини-`Workflow` по подмножеству) с issues в промпте.
    - Системный REJECT (контракт дырявый, расходятся многие) или `contract_gaps[]` от воркеров → поправь `contract.md` и **перезапусти** скрипт по затронутым участкам.
 6. **Завершение.** Никаких shutdown/роспуска команды — team не создавалась (Workflow-бэкенд команду не поднимает). Финальный отчёт: участки, файлы, что свёл lead, результат сборки/тестов, известные ограничения.
 

@@ -24,11 +24,9 @@ which one it chose before spawning anything.
 
 Guardrails that make this more than "spawn 4 agents": a **preflight gate** that verifies the
 required tools actually exist in the session before anything spawns (and stops honestly if they
-don't), a **triviality check** that talks you out of a 4-agent team for a typo fix, **per-role
-model picking** so a mechanical worker doesn't ride the lead's top-tier model by default (with
-escalation one tier up instead of a complaint when a cheap model stalls), semantic feedback rules
-that keep the developer from reverse-engineering assertions, and an ownership map that makes file
-races impossible by construction rather than by luck.
+don't), a **triviality check** that talks you out of a 4-agent team for a typo fix, semantic
+feedback rules that keep the developer from reverse-engineering assertions, and an ownership map
+that makes file races impossible by construction rather than by luck.
 
 ## Install
 
@@ -68,7 +66,7 @@ Takes effect after a session restart.
 ## Layout
 
 ```
-SKILL.md              entry point: preflight gate, mode choice, per-role models, lifecycle
+SKILL.md              entry point: preflight gate, mode choice, lifecycle
 install.md            /team-swarm install runbook
 role-briefs.md        spawn prompts for every role (English)
 tdd-cycle.md          mode A runbook: semantic feedback, isolation smells
