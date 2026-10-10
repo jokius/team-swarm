@@ -9,16 +9,24 @@
 // Off by default. Enable with TEAM_SWARM_NUDGE=smart|always (env, wins) or the
 // plugin's `nudge` userConfig option (exported as CLAUDE_PLUGIN_OPTION_NUDGE).
 
-import { createReadStream } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { createReadStream, realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 // How a real skill invocation looks in the transcript JSONL — verified empirically:
 // {"name":"Skill","input":{"skill":"team-swarm","args":"..."}}
-// The nudge text below deliberately avoids this exact substring, so we detect the
-// skill actually running, not our own reminder from an earlier turn.
-const SKILL_CALL = '"skill":"team-swarm"'
+// A skills-dir install logs the bare name; a marketplace install namespaces it as
+// "<plugin>:team-swarm". The nudge text below never contains this JSON shape, so we
+// detect the skill actually running, not our own reminder from an earlier turn.
+const SKILL_CALL = /"skill":"(?:[\w.-]+:)?team-swarm"/
+// ponytail: fixed overlap, a namespace longer than ~240 chars split across a chunk edge would be missed
+const OVERLAP = 256
 
 const MIN_LENGTH = 12
+
+// Not typed by the user: agent messages to "main" (<agent-message …>) and task
+// notifications (<task-notification>) reach UserPromptSubmit as a plain prompt with
+// no source field (#94675). Skipped in every mode — "always" means every user prompt.
+const INJECTED = /^</
 
 // \b is ASCII-only in JS, so Cyrillic alternatives need an explicit Unicode
 // letter boundary — /\bпочему\b/ never matches. Hence (?<!\p{L}) … (?!\p{L}) + /u.
@@ -28,9 +36,10 @@ const SKIP = [
   /(?<!\p{L})(?:соло|сам сделай|без команды|не собирай|solo|no team|yourself)(?!\p{L})/iu,
 ]
 
-const NUDGE = [
+export const NUDGE = [
   '[team-swarm] Looks like work on code.',
-  'Before writing or planning it, enter the team-swarm skill (Skill tool, skill name: team-swarm).',
+  'Before writing or planning it, enter the team-swarm skill with the Skill tool, under the name your skill list shows',
+  '(team-swarm, or team-swarm:team-swarm when installed from a marketplace).',
   'It runs its own preflight, decides whether the task is trivial enough to do solo, and picks the execution mode.',
   'If you deliberately skip it, tell the user why in one line.',
 ].join(' ')
@@ -47,6 +56,7 @@ export function shouldNudge(prompt, skillAlreadyRan = false, mode = 'smart') {
   const text = String(prompt ?? '').trim()
   if (!text) return false
   if (skillAlreadyRan) return false // team already up in this session — stop reminding
+  if (INJECTED.test(text)) return false
   if (mode === 'always') return true
   if (text.length < MIN_LENGTH) return false
   return !SKIP.some((pattern) => pattern.test(text))
@@ -61,12 +71,12 @@ export function transcriptHasSkillCall(path) {
     const stream = createReadStream(path, { encoding: 'utf8', highWaterMark: 1 << 20 })
     stream.on('data', (chunk) => {
       const text = carry + chunk
-      if (text.includes(SKILL_CALL)) {
+      if (SKILL_CALL.test(text)) {
         stream.destroy()
         resolve(true)
         return
       }
-      carry = text.slice(-SKILL_CALL.length) // keep an overlap so a split match still hits
+      carry = text.slice(-OVERLAP) // keep an overlap so a split match still hits
     })
     stream.on('close', () => resolve(false))
     // no transcript, no anti-spam — one nudge too many beats crashing the prompt
@@ -97,6 +107,17 @@ async function main() {
   )
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run main() only when executed directly, not when imported by the test. Compare real
+// paths: node resolves import.meta.url through symlinks but leaves argv[1] as typed, so
+// a skills-dir install symlinked into ~/.claude/skills never matched a plain comparison.
+function isEntryPoint() {
+  try {
+    return realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+  } catch {
+    return false
+  }
+}
+
+if (isEntryPoint()) {
   await main()
 }
