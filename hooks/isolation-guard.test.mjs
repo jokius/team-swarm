@@ -2,7 +2,7 @@
 // Run: node hooks/isolation-guard.test.mjs   (no framework, exits non-zero on failure)
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -87,6 +87,29 @@ assert.match(decide(gev('tester-o', 'Bash', { command: 'cat internal/order/order
 assert.match(decide(gev('tester-o', 'Bash', { command: 'rg Total internal/order/' }), goConfig) ?? '', /covers internal\/order\/order\.go/)
 assert.equal(decide(gev('tester-o', 'Bash', { command: 'go test ./internal/order/...' }), goConfig), null)
 assert.equal(decide(gev('tester-o', 'Read', { file_path: 'internal/order/order_test.go' }), goConfig), null)
+
+// the isolation map and the guard are not the teammates' to change
+for (const [tool, input] of [
+  ['Write', { file_path: '.team-swarm/isolation.json' }], ['Edit', { file_path: join(root, '.team-swarm', 'isolation.json') }],
+  ['Bash', { command: 'rm .team-swarm/isolation.json' }], ['Bash', { command: 'echo {} > .team-swarm/isolation.json' }],
+  ['Write', { file_path: join(dirname(fileURLToPath(import.meta.url)), 'isolation-guard.mjs') }],
+]) {
+  assert.match(decide(ev('developer-f1', tool, input), config) ?? '', /may not change the isolation map/, JSON.stringify(input))
+  assert.match(decide(ev('worker-order', tool, input), config) ?? '', /may not change the isolation map/) // even without own rules
+}
+assert.equal(decide(ev('reviewer-f1', 'Write', { file_path: '.team-swarm/isolation.json' }), config), null)
+
+// the same file under another name: a symlink, another case on a case-insensitive disk, a glob
+mkdirSync(join(root, 'tests'))
+writeFileSync(join(root, 'tests', 'test_calc.py'), 'secret\n')
+symlinkSync(join(root, 'tests'), join(root, 'tt'), 'dir')
+assert.match(decide(ev('developer-f1', 'Read', { file_path: 'tt/test_calc.py' }), config) ?? '', /tests\//)
+assert.match(decide(ev('developer-f1', 'Bash', { command: 'cat tt/test_calc.py' }), config) ?? '', /tests\//)
+assert.match(decide(ev('developer-f1', 'Bash', { command: 'cat tt/*' }), config) ?? '', /tests\//)
+if (existsSync(join(root, 'TESTS'))) { // case-insensitive filesystem (macOS default)
+  assert.match(decide(ev('developer-f1', 'Read', { file_path: 'Tests/test_calc.py' }), config) ?? '', /tests\//)
+  assert.match(decide(ev('developer-f1', 'Bash', { command: 'cat Tests/test_calc.py' }), config) ?? '', /tests\//)
+}
 
 // no config → only the Agent/TaskStop rule
 assert.equal(decide(ev('developer-f1', 'Read', { file_path: 'tests/a.py' }), null), null)

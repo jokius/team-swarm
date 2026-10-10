@@ -120,6 +120,10 @@ teammate's name (verified on 2.1.296, not documented, so it may change):
   is refused with a hint to re-run it scoped. With a suffix ban such as `*_test.go` (tests next to
   the code) any directory search is refused and the teammate searches by file name.
 
+Paths are compared in canonical form (a symlink such as `t -> tests`, or `Tests/` on a
+case-insensitive disk, doesn't get through), and these teammates may not change the
+`.team-swarm/` map or the guard's own files.
+
 It is a safety net, not a lock — `npm test` output or `cd tests && cat *` still get through — so
 the briefs and the review keep the same rules. Everywhere else it costs one `sh` start (~6 ms) per file or shell tool call.
 

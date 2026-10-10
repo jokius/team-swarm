@@ -19,7 +19,7 @@
 
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const RESTRICTED = /^(tester|developer|worker)-/
@@ -60,6 +60,47 @@ const coversRoot = (abs, root) => {
   return !r.startsWith('..') && !isAbsolute(r)
 }
 const expandHome = (t) => (t.startsWith('~') ? join(homedir(), t.slice(1)) : t)
+
+// Canonical path: symlinks resolved and, on case-insensitive filesystems, the on-disk case
+// (realpath.native does that, plain realpath doesn't). A path that doesn't exist yet keeps
+// its tail under the canonical form of its nearest existing ancestor.
+function canon(p) {
+  try {
+    return realpathSync.native(p)
+  } catch {
+    const parent = dirname(p)
+    return parent === p ? p : join(canon(parent), basename(p))
+  }
+}
+
+// Every word of a shell command that names an existing path (globs: the part before the
+// wildcard), so a symlink (`t -> tests`) or another case (`Tests/`) can't slip past the
+// substring check.
+function existingPaths(cmd, cwd) {
+  const out = []
+  for (const raw of cmd.split(/[\s;|&()<>]+/)) {
+    let t = raw.replace(/^(['"])(.*)\1$/, '$2')
+    if (!t || t.startsWith('-')) continue
+    const glob = t.search(/[*?[]/)
+    if (glob === 0) continue
+    if (glob > 0) t = t.slice(0, glob).replace(/[^/]*$/, '') || '.'
+    const abs = resolve(cwd, expandHome(t))
+    if (existsSync(abs)) out.push(abs)
+  }
+  return out
+}
+
+// The lead's isolation map and the guard itself are off-limits to the teammates they bind.
+const POLICY_TEXT = /\.team-swarm|isolation\.json|isolation-guard/
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
+const GUARD_FILES = (() => {
+  try {
+    const dir = dirname(canon(fileURLToPath(import.meta.url)))
+    return new Set(['isolation-guard.mjs', 'isolation-guard.sh', 'hooks.json'].map((f) => join(dir, f)))
+  } catch {
+    return new Set()
+  }
+})()
 
 // Walk up from cwd to the first directory holding .team-swarm/isolation.json.
 export function findConfig(cwd) {
@@ -104,15 +145,29 @@ export function decide(event, config) {
   if (NO_SPAWN_TOOLS.has(tool)) {
     return `${name} may not use ${tool}: teammates don't spawn or stop agents (a child outlives TaskStop and bypasses isolation). Ask the lead via SendMessage to "main".`
   }
-  const rules = config?.rules?.[role]
+  if (!config) return null
+  const input = event.tool_input ?? {}
+  const root = canon(config.root)
+  const cwd = event.cwd || config.root
+  const abs = (p) => canon(resolve(cwd, expandHome(String(p))))
+  const relOf = (p) => relative(root, abs(p))
+
+  const policy = `team-swarm isolation: ${name} may not change the isolation map (.team-swarm/) or the guard — they belong to the lead. Ask the lead via SendMessage to "main".`
+  if (tool === 'Bash' && POLICY_TEXT.test(String(input.command ?? ''))) return policy
+  if (WRITE_TOOLS.has(tool)) {
+    const target = input.file_path ?? input.notebook_path
+    if (target) {
+      const rel = relOf(target)
+      if (rel === '.team-swarm' || rel.startsWith('.team-swarm' + sep) || GUARD_FILES.has(abs(target))) return policy
+    }
+  }
+
+  const rules = config.rules?.[role]
   if (!Array.isArray(rules) || rules.length === 0) return null
   // "!path" carves an exception out of a ban (e.g. an interface file inside src/); not for Bash
   const forbidden = rules.filter((r) => !r.startsWith('!'))
   const allowed = rules.filter((r) => r.startsWith('!')).map((r) => r.slice(1))
 
-  const input = event.tool_input ?? {}
-  const cwd = event.cwd || config.root
-  const relOf = (p) => relative(config.root, isAbsolute(p) ? p : resolve(cwd, p))
   const why = role === 'tester'
     ? 'tests are written blind from the spec, without seeing the implementation'
     : 'the implementation is written blind from the spec, without seeing the tests'
@@ -131,13 +186,14 @@ export function decide(event, config) {
 
   // Scope check for one search root: whole project → unscoped; inside a ban → boundary;
   // above a ban → too wide.
-  const checkRoot = (abs) => {
-    if (coversRoot(abs, config.root)) return unscoped()
-    const rel = relative(config.root, abs)
+  const checkRoot = (searchRoot) => {
+    const target = canon(searchRoot)
+    if (coversRoot(target, root)) return unscoped()
+    const rel = relative(root, target)
     if (allowed.some((a) => hits(rel, a))) return null
     const inside = forbidden.find((f) => hits(rel, f))
     if (inside) return deny(inside)
-    const over = forbidden.find((f) => searchCovers(rel, f, config.root))
+    const over = forbidden.find((f) => searchCovers(rel, f, root))
     return over ? covering(over) : null
   }
 
@@ -147,11 +203,17 @@ export function decide(event, config) {
     const needle = (f) => (f.startsWith('*') ? f.slice(1) : f.endsWith('/') ? f.replace(/\/+$/, '/') : f)
     const hit = forbidden.find((f) => cmd.includes(needle(f)))
     if (hit) return deny(hit)
+    for (const p of existingPaths(cmd, cwd)) {
+      const rel = relative(root, canon(p))
+      if (rel.startsWith('..') || isAbsolute(rel)) continue
+      const inside = forbidden.find((f) => hits(rel, f))
+      if (inside) return deny(inside)
+    }
     // where Grep/Glob are off, search goes through Bash: `rg x`, `grep -rn x .` or a bare
     // `git diff` walks the whole project, forbidden dirs included — demand explicit own paths.
     // Each ; && || | segment is judged on its own.
     for (const seg of cmd.split(/;|&&|\|\||\||\n/)) {
-      const targets = isGitContent(seg) ? gitTargets(seg, cwd, config.root)
+      const targets = isGitContent(seg) ? gitTargets(seg, cwd, root)
         : RECURSIVE_SEARCH.test(seg) ? searchTargets(seg, cwd)
         : null
       if (!targets) continue
