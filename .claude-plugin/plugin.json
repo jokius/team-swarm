@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "team-swarm",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Assembles a real Claude Code agent team: a lead plus parallel teammates with isolated roles. TDD mode (tester/developer/reviewer, tests-vs-src isolation) for new behaviour, fan-out mode (domain workers, one owner per file) for wide mechanical refactors.",
   "author": {
     "name": "jokius",

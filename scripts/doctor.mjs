@@ -2,12 +2,14 @@
 // team-swarm doctor — checks the environment AROUND the skill.
 // Run: node scripts/doctor.mjs
 //
-// Deliberately does NOT check Agent / SendMessage / Workflow: those live in the
-// session's tool list, not on disk, so only the model can see them. The skill's own
-// Preflight gate covers them (SKILL.md → "Требования среды и Preflight-гейт").
+// It reads the on-disk switches (agent-teams flag, workflow kill switches, version)
+// but does NOT check whether Agent / SendMessage / Workflow are actually in the tool
+// list: that lives in the session, so only the model can see it. The skill's own
+// Preflight gate covers it (SKILL.md → "Требования среды и Preflight-гейт").
 //
 // Output is one line per check: STATUS  name  detail
-// STATUS is OK | MISS | OFF | UNKNOWN. Lines with a "fix:" are safe to run as-is.
+// STATUS is OK | WARN | MISS | OFF | UNKNOWN. A "fix:" is either a command that is
+// safe to run as-is or a pointer to the install.md step.
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
@@ -44,19 +46,63 @@ function run(command, args) {
 }
 
 const configDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude')
+const settingsPath = join(configDir, 'settings.json')
+let settings = {}
+try {
+  settings = JSON.parse(readFileSync(settingsPath, 'utf8'))
+} catch {
+  settings = {}
+}
 
-// 1. Claude Code itself
-const version = run('claude', ['--version'])
-add(
-  version ? 'OK' : 'UNKNOWN',
-  'claude',
-  version ? version.trim().split('\n').pop().trim() : 'CLI not on PATH — checks below may be incomplete',
-)
+const OFF = new Set(['', 'off', 'false', '0', 'no'])
+const isOn = (value) => !OFF.has(String(value ?? '').trim().toLowerCase())
+// A flag counts when it is set in this process or in the config dir's settings `env`.
+const flagSource = (key) =>
+  isOn(process.env[key]) ? 'this process' : isOn(settings.env?.[key]) ? `env in ${settingsPath}` : null
 
-// 2. node — the nudge hook runs on it
+// 1. Claude Code itself. 2.1.295 fixed teammates failing their first SendMessage
+// (2.1.288 before it: plugin agents spawned by name keep their own prompt and tools).
+const MIN_VERSION = [2, 1, 295]
+const versionText = run('claude', ['--version'])
+const version = versionText?.match(/(\d+)\.(\d+)\.(\d+)/)
+if (!version) {
+  add('UNKNOWN', 'claude', 'CLI not on PATH — checks below may be incomplete')
+} else {
+  const parts = version.slice(1).map(Number)
+  const diff = parts.map((n, i) => n - MIN_VERSION[i]).find((d) => d !== 0) ?? 0
+  if (diff >= 0) add('OK', 'claude', version[0])
+  else
+    add(
+      'WARN',
+      'claude',
+      `${version[0]} is older than ${MIN_VERSION.join('.')}: teammates' first SendMessage fails there until they load it via ToolSearch — fix: claude update`,
+    )
+}
+
+// 2. Agent teams. Without the flag Agent has no `name` parameter and every spawn is a
+// plain subagent, so mode A (TDD) is impossible.
+const teams = flagSource('CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS')
+if (teams) add('OK', 'agent-teams', `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS (${teams})`)
+else
+  add(
+    'OFF',
+    'agent-teams',
+    `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS not set — mode A (TDD) impossible — fix: install.md → «Agent teams»`,
+  )
+
+// 3. Workflow kill switches. Not disabled ≠ available: Preflight checks the tool itself.
+const workflowSwitch = flagSource('CLAUDE_CODE_DISABLE_WORKFLOWS')
+const workflowsOff =
+  settings.disableWorkflows === true
+    ? `disableWorkflows in ${settingsPath}`
+    : workflowSwitch && `CLAUDE_CODE_DISABLE_WORKFLOWS, ${workflowSwitch}`
+if (workflowsOff) add('OFF', 'workflow', `disabled (${workflowsOff}) — mode B runs on agent-teams instead`)
+else add('OK', 'workflow', 'not disabled in env or settings')
+
+// 4. node — the nudge hook runs on it
 add('OK', 'node', process.version)
 
-// 3. Recommended plugins
+// 5. Recommended plugins
 const pluginList = run('claude', ['plugin', 'list'])
 for (const plugin of PLUGINS) {
   if (pluginList === null) {
@@ -68,33 +114,29 @@ for (const plugin of PLUGINS) {
   }
 }
 
-// 4. How team-swarm itself is loaded
-if (pluginList && /\bteam-swarm@/.test(pluginList)) {
-  const id = pluginList.match(/team-swarm@[\w-]+/)[0]
-  add('OK', 'skill:team-swarm', `loaded as plugin ${id}`)
+// 6. How team-swarm itself is loaded. Two copies = a marketplace install shadowing the
+// skills-dir one: the installed plugin takes precedence, the skills-dir copy is not loaded.
+const ids = [...new Set(pluginList?.match(/\bteam-swarm@[\w-]+/g) ?? [])]
+if (ids.length > 1) {
+  add('WARN', 'skill:team-swarm', `several copies (${ids.join(', ')}) — the marketplace install wins and the skills-dir hooks are off, but its SKILL.md still loads as a plain team-swarm next to team-swarm:team-swarm; remove one`)
+} else if (ids.length === 1) {
+  add('OK', 'skill:team-swarm', `loaded as plugin ${ids[0]}`)
 } else if (existsSync(join(configDir, 'skills', 'team-swarm', 'SKILL.md'))) {
-  add('OK', 'skill:team-swarm', `plain skill at ${join(configDir, 'skills', 'team-swarm')} (hook needs the plugin manifest — restart the session)`)
+  add('OK', 'skill:team-swarm', `plain skill at ${join(configDir, 'skills', 'team-swarm')} (hooks — nudge and isolation guard — need the plugin manifest; restart the session)`)
 } else {
   add('MISS', 'skill:team-swarm', 'not found in this config dir — is CLAUDE_CONFIG_DIR pointing somewhere else?')
 }
 
-// 5. Nudge hook state. Env wins over the plugin's userConfig, same as in the hook.
+// 7. Nudge hook state. Env wins over the plugin's userConfig, same as in the hook.
 const envMode = (process.env.TEAM_SWARM_NUDGE || '').trim().toLowerCase()
-let settings = {}
-try {
-  settings = JSON.parse(readFileSync(join(configDir, 'settings.json'), 'utf8'))
-} catch {
-  settings = {}
-}
 const settingsMode = String(settings.env?.TEAM_SWARM_NUDGE ?? '').trim().toLowerCase()
 const configuredNudge = Object.entries(settings.pluginConfigs ?? {})
   .filter(([id]) => id.startsWith('team-swarm@'))
   .map(([, value]) => value?.options?.nudge)
   .find((value) => value !== undefined)
 
-const OFF = new Set(['', 'off', 'false', '0', 'no'])
 if (envMode && !OFF.has(envMode)) add('OK', 'hook:nudge', `${envMode} (TEAM_SWARM_NUDGE in this process)`)
-else if (settingsMode && !OFF.has(settingsMode)) add('OK', 'hook:nudge', `${settingsMode} (env in ${join(configDir, 'settings.json')})`)
+else if (settingsMode && !OFF.has(settingsMode)) add('OK', 'hook:nudge', `${settingsMode} (env in ${settingsPath})`)
 else if (configuredNudge !== undefined && !OFF.has(String(configuredNudge).toLowerCase()))
   add('OK', 'hook:nudge', `${configuredNudge} (plugin userConfig)`)
 else add('OFF', 'hook:nudge', 'no reminder on coding prompts — fix: install.md → «Хук-напоминалка»')
