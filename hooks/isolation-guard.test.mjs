@@ -111,6 +111,22 @@ if (existsSync(join(root, 'TESTS'))) { // case-insensitive filesystem (macOS def
   assert.match(decide(ev('developer-f1', 'Bash', { command: 'cat Tests/test_calc.py' }), config) ?? '', /tests\//)
 }
 
+// with a map, role teammates get file/shell/search/messaging tools only; extras via allowTools
+for (const tool of ['Monitor', 'LSP', 'Artifact', 'SendUserFile', 'mcp__fs__read_file', 'EnterWorktree']) {
+  assert.match(decide(ev('developer-f1', tool, { file_path: 'tests/test_calc.py' }), config) ?? '', /may not use .*allowTools/, tool)
+}
+for (const tool of ['Read', 'Bash', 'SendMessage', 'Skill', 'ToolSearch', 'WebSearch']) {
+  assert.doesNotMatch(decide(ev('developer-f1', tool, { file_path: 'pkg/src/calc.go', command: 'ls', query: 'x' }), config) ?? '', /may not use/, tool)
+}
+const pw = { ...config, rules: { ...config.rules, allowTools: ['mcp__plugin_playwright_playwright__*'] } }
+assert.equal(decide(ev('tester-f1', 'mcp__plugin_playwright_playwright__browser_click', {}), pw), null)
+assert.equal(decide(ev('reviewer-f1', 'Monitor', {}), config), null) // reviewer is not a role teammate
+
+// quotes and backslashes don't hide a path
+for (const cmd of ['cat te""sts/test_calc.py', "cat 'tests'/test_calc.py", 'cat te\\sts/test_calc.py', 'rm .team-sw""arm/isolation.json']) {
+  assert.notEqual(decide(ev('developer-f1', 'Bash', { command: cmd }), config), null, cmd)
+}
+
 // no config → only the Agent/TaskStop rule
 assert.equal(decide(ev('developer-f1', 'Read', { file_path: 'tests/a.py' }), null), null)
 

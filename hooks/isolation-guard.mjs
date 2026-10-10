@@ -14,8 +14,13 @@
 // name prefix (stage-unique names: tester-<feature>, developer-<feature>, worker-<sector>).
 // Undocumented behaviour: if it changes, the guard silently degrades to prompt-only.
 //
-// Best effort by design: Bash is matched by substring; a search without a path (Grep/Glob
-// tools, or rg / grep -r / find / git grep in Bash) counts as searching the whole project. Never crashes the tool call — any error means allow.
+// Threat model: cooperative agents that leak by accident or drift casually — not an agent
+// that sets out to beat the guard. Bash is a general-purpose language: variables
+// (d=tests; cat $d/x), interpreters (python -c with built strings) or test-runner output
+// get through any string check. A hard boundary would need a worktree without the other
+// side's files. Within that model: Bash is matched by substring and by the existing paths
+// it names (canonical form); a search without a path (Grep/Glob, or rg / grep -r / find /
+// git grep / git diff in Bash) counts as searching the whole project. Never crashes the tool call — any error means allow.
 
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -90,6 +95,20 @@ function existingPaths(cmd, cwd) {
   return out
 }
 
+// With a map in place, role teammates get file, shell, search and messaging tools only, so the
+// map covers everything they can read (Monitor, LSP, Artifact, MCP readers… would not be).
+// Extra tools: "allowTools" in the map, e.g. ["mcp__plugin_playwright_playwright__*"].
+const ROLE_TOOLS = new Set([
+  'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'Grep', 'Glob',
+  'SendMessage', 'ToolSearch', 'Skill', 'WebSearch', 'WebFetch',
+  'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate', 'TodoWrite',
+])
+const toolAllowed = (tool, extra) =>
+  ROLE_TOOLS.has(tool) || extra.some((p) => (p.endsWith('*') ? tool.startsWith(p.slice(0, -1)) : tool === p))
+
+// Quotes and backslashes don't change which file a shell word names: te""sts → tests.
+const unquote = (cmd) => cmd.replace(/\\(.)/g, '$1').replace(/["']/g, '')
+
 // The lead's isolation map and the guard itself are off-limits to the teammates they bind.
 const POLICY_TEXT = /\.team-swarm|isolation\.json|isolation-guard/
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])
@@ -152,8 +171,13 @@ export function decide(event, config) {
   const abs = (p) => canon(resolve(cwd, expandHome(String(p))))
   const relOf = (p) => relative(root, abs(p))
 
+  const extra = Array.isArray(config.rules?.allowTools) ? config.rules.allowTools.map(String) : []
+  if (!toolAllowed(tool, extra)) {
+    return `team-swarm isolation: ${name} may not use ${tool}: role teammates work with file, shell, search and messaging tools, so the isolation map covers everything they read. If the lead wants it, it goes into "allowTools" in .team-swarm/isolation.json. Ask the lead via SendMessage to "main".`
+  }
+
   const policy = `team-swarm isolation: ${name} may not change the isolation map (.team-swarm/) or the guard — they belong to the lead. Ask the lead via SendMessage to "main".`
-  if (tool === 'Bash' && POLICY_TEXT.test(String(input.command ?? ''))) return policy
+  if (tool === 'Bash' && POLICY_TEXT.test(unquote(String(input.command ?? '')))) return policy
   if (WRITE_TOOLS.has(tool)) {
     const target = input.file_path ?? input.notebook_path
     if (target) {
@@ -198,7 +222,7 @@ export function decide(event, config) {
   }
 
   if (tool === 'Bash') {
-    const cmd = String(input.command ?? '')
+    const cmd = unquote(String(input.command ?? ''))
     // "*sfx" → sfx, "dir/" → "dir/", exact path → itself (substring match, best effort)
     const needle = (f) => (f.startsWith('*') ? f.slice(1) : f.endsWith('/') ? f.replace(/\/+$/, '/') : f)
     const hit = forbidden.find((f) => cmd.includes(needle(f)))

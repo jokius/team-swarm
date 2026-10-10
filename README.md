@@ -124,8 +124,15 @@ Paths are compared in canonical form (a symlink such as `t -> tests`, or `Tests/
 case-insensitive disk, doesn't get through), and these teammates may not change the
 `.team-swarm/` map or the guard's own files.
 
-It is a safety net, not a lock — `npm test` output or `cd tests && cat *` still get through — so
-the briefs and the review keep the same rules. Everywhere else it costs one `sh` start (~6 ms) per file or shell tool call.
+With a map in place these teammates also get file, shell, search and messaging tools only
+(`Monitor`, `LSP`, `Artifact` or an MCP file reader would sidestep the map); anything else goes
+into `"allowTools"` in the map, e.g. `["mcp__plugin_playwright_playwright__*"]`.
+
+Threat model: accidental leaks and casual drift by cooperative agents — not an agent that sets
+out to beat the guard. Bash is a general-purpose language, so variables (`d=tests; cat $d/x`),
+an interpreter with built strings, `npm test` output or `cd tests && cat *` get through any
+string check; a hard boundary would take a worktree without the other side's files. The briefs
+and the review keep the same rules. Everywhere else it costs one `sh` start (~6 ms) per tool call.
 
 ## Layout
 
