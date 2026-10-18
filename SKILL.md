@@ -117,10 +117,11 @@ Peer-сообщения — только между одновременно ж�
 
 ### Рекомендованные плагины
 
-Если плагина нет, а задача от него выиграет, — одна строка рядом с планом, без вопроса, и работа идёт дальше: «Без `superpowers` тиммейты работают без enforced TDD-методологии; поставить: … Продолжаю без него.»
-- `superpowers` — рабочие методологии для тиммейтов (`test-driven-development`, `systematic-debugging` и др.): `/plugin marketplace add obra/superpowers-marketplace` → `/plugin install superpowers@superpowers-marketplace`.
+Если плагина нет, а задача от него выиграет, — одна строка рядом с планом, без вопроса, и работа идёт дальше: «Без `compound-engineering` reviewer — обычный general-purpose; поставить: … Продолжаю без него.»
 - `compound-engineering` — специализированные reviewer-агенты (`ce-security-sentinel`, `ce-performance-oracle`, …): `/plugin marketplace add EveryInc/compound-engineering-plugin` → `/plugin install compound-engineering@compound-engineering-plugin`.
 - `impeccable` — дизайн-проход фронтенда (раздел ниже).
+
+`superpowers` — опциональный фолбек, не рекомендация, и строкой выше его не предлагай. TDD в скилле держит структура: изоляция tester/developer, гард и гейт лида (RED на заглушке, затем GREEN), а не плагин. Если он уже стоит, tester берёт его `test-driven-development` для дисциплины RED (`role-briefs.md`); без него ничего не теряется. Ставить только по желанию пользователя: `/plugin marketplace add obra/superpowers-marketplace` → `/plugin install superpowers@superpowers-marketplace`.
 
 ## Режим A: TDD-цикл
 

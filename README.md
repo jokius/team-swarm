@@ -68,9 +68,13 @@ Then run `/team-swarm install` (`/team-swarm:team-swarm install` for a marketpla
 checks the environment (Claude Code version, the agent-teams flag, Workflow switches, node,
 recommended plugins, tool availability) and offers to fix what's missing.
 
-Recommended companions, all optional: [`superpowers`](https://github.com/obra/superpowers-marketplace)
-(enforced TDD and debugging methodologies for teammates), `compound-engineering` (specialised
-review agents), [`impeccable`](https://github.com/pbakaus/impeccable) (design pass on frontend work).
+Recommended companions, all optional: `compound-engineering` (specialised review agents) and
+[`impeccable`](https://github.com/pbakaus/impeccable) (design pass on frontend work).
+
+[`superpowers`](https://github.com/obra/superpowers-marketplace) is a fallback, not a requirement: TDD here
+is enforced by structure (tester/developer isolation, the guard hook and the lead's RED→GREEN gate), not
+by a plugin. If it is installed, the tester uses its `test-driven-development` skill for RED discipline;
+without it nothing is lost.
 
 ## Usage
 

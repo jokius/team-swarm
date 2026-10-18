@@ -18,11 +18,6 @@ import { join } from 'node:path'
 
 const PLUGINS = [
   {
-    id: 'superpowers',
-    why: 'enforced TDD / debugging methodologies for teammates (strongly recommended)',
-    fix: 'claude plugin marketplace add obra/superpowers-marketplace && claude plugin install superpowers@superpowers-marketplace',
-  },
-  {
     id: 'compound-engineering',
     why: 'specialised review agents for the reviewer role (optional)',
     fix: 'claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering@compound-engineering-plugin',
@@ -31,6 +26,14 @@ const PLUGINS = [
     id: 'impeccable',
     why: 'design pass on frontend tasks (optional)',
     fix: 'claude plugin marketplace add pbakaus/impeccable && claude plugin install impeccable@impeccable',
+  },
+  {
+    id: 'superpowers',
+    // Fallback only: TDD is enforced by role isolation, the guard and the lead's gate.
+    // Missing is not a problem, so it never reports MISS.
+    fallback: true,
+    why: 'optional fallback: the tester uses its test-driven-development skill for RED discipline if present',
+    fix: 'claude plugin marketplace add obra/superpowers-marketplace && claude plugin install superpowers@superpowers-marketplace',
   },
 ]
 
@@ -109,6 +112,8 @@ for (const plugin of PLUGINS) {
     add('UNKNOWN', `plugin:${plugin.id}`, `could not run "claude plugin list" — check manually. ${plugin.why}`)
   } else if (new RegExp(`\\b${plugin.id}@`).test(pluginList)) {
     add('OK', `plugin:${plugin.id}`, plugin.why)
+  } else if (plugin.fallback) {
+    add('OK', `plugin:${plugin.id}`, `not installed, nothing lost (${plugin.why}); install only if wanted: ${plugin.fix}`)
   } else {
     add('MISS', `plugin:${plugin.id}`, `${plugin.why} — fix: ${plugin.fix}`)
   }
