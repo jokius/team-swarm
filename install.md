@@ -30,8 +30,9 @@ node "<каталог скилла>/scripts/doctor.mjs"
 `fix:` в строке — либо готовая команда, либо ссылка на раздел этого файла.
 
 Что он смотрит:
-- `claude` — версия Claude Code. Минимум — 2.1.295: до неё первый `SendMessage` тиммейта
-  падал, пока тот не загрузит инструмент через `ToolSearch`. Ниже — `WARN`.
+- `claude` — версия Claude Code. Минимум — 2.1.318: до 2.1.295 первый `SendMessage` тиммейта
+  падал, пока тот не загрузит инструмент через `ToolSearch`, а до 2.1.318 resume Workflow
+  перезапускал уже отработавших агентов. Ниже — `WARN`.
 - `agent-teams` — флаг `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` в окружении процесса или в `env`
   файла `settings.json` конфиг-директории (`$CLAUDE_CONFIG_DIR`, иначе `~/.claude`).
 - `workflow` — не выключен ли Workflow: `disableWorkflows` в settings или

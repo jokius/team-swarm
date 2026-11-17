@@ -31,8 +31,8 @@ hook that enforces the tester/developer split in the harness instead of only ask
 
 ## Install
 
-Needs Claude Code **2.1.295 or later** (earlier builds fail a teammate's first `SendMessage` until it loads the tool through
-`ToolSearch`) and
+Needs Claude Code **2.1.318 or later** (builds before 2.1.295 fail a teammate's first `SendMessage` until it loads the tool through
+`ToolSearch`, and builds before 2.1.318 re-run finished agents on a `Workflow` resume) and
 agent teams switched on: `"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"` in your settings `env`.
 Teams need an interactive session — they don't run under `-p` or the Agent SDK.
 

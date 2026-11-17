@@ -63,9 +63,11 @@ const isOn = (value) => !OFF.has(String(value ?? '').trim().toLowerCase())
 const flagSource = (key) =>
   isOn(process.env[key]) ? 'this process' : isOn(settings.env?.[key]) ? `env in ${settingsPath}` : null
 
-// 1. Claude Code itself. 2.1.295 fixed teammates failing their first SendMessage
+// 1. Claude Code itself. 2.1.318 is the first build whose Workflow resume serves finished
+// agents from the journal (pipeline/parallel 2.1.305, after a usage limit 2.1.318).
+// 2.1.295 fixed teammates failing their first SendMessage
 // (2.1.288 before it: plugin agents spawned by name keep their own prompt and tools).
-const MIN_VERSION = [2, 1, 295]
+const MIN_VERSION = [2, 1, 318]
 const versionText = run('claude', ['--version'])
 const version = versionText?.match(/(\d+)\.(\d+)\.(\d+)/)
 if (!version) {
