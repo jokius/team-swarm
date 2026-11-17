@@ -80,7 +80,7 @@ if (!version) {
     add(
       'WARN',
       'claude',
-      `${version[0]} is older than ${MIN_VERSION.join('.')}: teammates' first SendMessage fails there until they load it via ToolSearch — fix: claude update`,
+      `${version[0]} is older than ${MIN_VERSION.join('.')}: a Workflow resume re-runs finished agents there (and before 2.1.295 teammates' first SendMessage fails until they load it via ToolSearch) — fix: claude update`,
     )
 }
 
