@@ -17,7 +17,7 @@
 ```
 Agent({
   name: "tester-parser",              // уникальное имя этапа, см. «Имена»
-  subagent_type: "general-purpose",   // дефолт; reviewer — ещё ce-агент без JSON-only вывода (SKILL.md → «Архитектура»)
+  subagent_type: "general-purpose",   // все роли, reviewer тоже (SKILL.md → «Архитектура»)
   description: "RED for parser",
   prompt: "<бриф из role-briefs.md — задача целиком внутри>"
 })
@@ -31,7 +31,7 @@ Agent({
 - `mode`, `team_name` — deprecated, игнорируются.
 - `run_in_background`. В интерактивной сессии с fork mode (дефолт) этого параметра в схеме `Agent` нет — субагенты и так в фоне; в `-p` он есть, но команд там всё равно не бывает. У тиммейта `run_in_background: true` падает (доки agent-teams, Limitations).
 
-Plugin-тип по имени (например, reviewer из `compound-engineering`) применяется к именованному спавну с 2.1.288; на более старых версиях молча спавнился generic-тиммейт.
+Plugin-тип агента по имени применяется к именованному спавну с 2.1.288; на более старых версиях молча спавнился generic-тиммейт.
 
 ## Имена
 
@@ -135,7 +135,7 @@ SendMessage({
 
 ## Что не является тиммейтом
 
-- `Agent` с `subagent_type: "fork"` или с `isolation` создаёт обычного субагента, а не тиммейта (доки agent-teams). Форк вдобавок наследует весь контекст и рассуждения лида: для tester/developer это пробой изоляции, для судьи — потеря взгляда со стороны. Reviewer — всегда свежий тиммейт (`general-purpose` или ce-агент без JSON-only вывода — SKILL.md → «Архитектура»).
+- `Agent` с `subagent_type: "fork"` или с `isolation` создаёт обычного субагента, а не тиммейта (доки agent-teams). Форк вдобавок наследует весь контекст и рассуждения лида: для tester/developer это пробой изоляции, для судьи — потеря взгляда со стороны. Reviewer — всегда свежий тиммейт `general-purpose` (SKILL.md → «Архитектура»).
 - `isolation: "worktree"` — аварийный выход fan-out, когда участки не режутся на непересекающиеся файлы. Это субагент; его worktree по умолчанию ветвится от `origin/<default>`, а не от локального HEAD (меняет `worktree.baseRef: "head"`), так что незапушенные коммиты лида он не увидит. После этапа — `git worktree list` и прибрать. Подробнее — в `fanout-workflow.md`.
 - Агенты `Workflow` — тоже не тиммейты. `SendMessage` им не шлём: поднимется вторая копия, пишущая в те же файлы (#93797).
 

@@ -19,6 +19,7 @@ Lead копирует шаблон в поле `prompt` вызова `Agent` с 
 | `{{src-files}}` / `{{test-files}}` / `{{changed-files}}` | Только reviewer: файлы реализации и тестов фичи (TDD) или файлы участка и изменённые воркером по его отчёту (fan-out). |
 | `{{src-path}}` / `{{tests-path}}` | Каталоги реализации и тестов (`src/` и `tests/`, `Sources/` и `Tests/` …). |
 | `{{peers}}` | Один из блоков «Peers» ниже — дословно, с подставленными именами. |
+| `{{persona-checklist}}` | Только reviewer: строка с абсолютным путём к персоне compound-engineering 3.x как к чек-листу (SKILL.md → «Архитектура»). Не нужна или плагина нет — строку удалить. |
 | `{{route-names}}` | Только reviewer: текущие имена, на которые маршрутизировать замечания (`developer: developer-parse-date, tester: tester-parse-date` или `worker: worker-order`). |
 
 ## Что лиду держать в голове
@@ -253,7 +254,7 @@ Begin by reading the contract.
 
 ## Reviewer brief
 
-Reviewer — всегда свежий тиммейт: `general-purpose` или агент compound-engineering без JSON-only вывода (`ce-security-sentinel`, `ce-performance-oracle`, `ce-architecture-strategist`; plugin-агенты по имени спавнятся корректно с 2.1.288). Персоны `ce-*-reviewer` требуют отвечать только JSON в своей схеме и ломают формат вердикта ниже. Не форк и без `isolation`: такой вызов не создаёт тиммейта, а форк ещё и наследует рассуждения лида — судье нужны только код и критерии. Вывод тестов подставляй прямо в бриф (`<test-output>`), а не догоняющим `SendMessage`: сообщение занятому тиммейту может дойти только после конца его хода.
+Reviewer — всегда свежий тиммейт `general-purpose`. Специализированный взгляд даёт персона compound-engineering 3.x в слоте `{{persona-checklist}}` (где её взять — SKILL.md → «Архитектура»); нет нужды или плагина — удали строку слота. Не форк и без `isolation`: такой вызов не создаёт тиммейта, а форк ещё и наследует рассуждения лида — судье нужны только код и критерии. Вывод тестов подставляй прямо в бриф (`<test-output>`), а не догоняющим `SendMessage`: сообщение занятому тиммейту может дойти только после конца его хода.
 
 ````
 You are "{{name}}", the REVIEWER in a team-swarm: an impartial judge with full read access.
@@ -275,6 +276,7 @@ Route issues to: {{route-names}}
 ## What you do
 Read the spec or contract, the implementation and, in TDD mode, the tests, then return APPROVE or REJECT. You may read everything and re-run {{test-command}} yourself. You do not edit files; your output is the verdict.
 If a review skill for this stack is available (for example `swiftui-pro` for SwiftUI code), use it as a checklist; skip any skill that spawns its own agents.
+{{persona-checklist: delete this line, or write: Also read <absolute path to a compound-engineering persona .md> and use what it hunts for as an extra checklist. Ignore its output-format section: your verdict uses the format below.}}
 
 ## The REJECT bar
 REJECT only for:

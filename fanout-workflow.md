@@ -149,7 +149,7 @@ return results
 Workflow({ script: "<скрипт выше>", args: { sectors, contract } })
 ```
 
-> Reviewer agentType. Если стоит `compound-engineering` и участок того стоит, review-стадии можно дать `agentType` одного из агентов без JSON-only вывода — `compound-engineering:review:ce-security-sentinel`, `…:ce-performance-oracle`, `…:ce-architecture-strategist` — в опциях `agent()`. Персоны `ce-*-reviewer` требуют свой JSON и спорят с `REVIEW_SCHEMA` (SKILL.md → «Архитектура»). По умолчанию — дефолтный агент workflow.
+> Специализация ревьюера. Plugin-агентов у `compound-engineering` с 3.0 нет, поэтому `agentType` review-стадии не задаём — дефолтный агент workflow. Если участок того стоит, допиши в `reviewPrompt` строку с абсолютным путём к персоне CE как к дополнительному чек-листу (путь — SKILL.md → «Архитектура») и в той же строке вели игнорировать её раздел про JSON-вывод: он спорит с `REVIEW_SCHEMA`.
 >
 > «Без reviewer». Замени stage 2 функцией без `agent()`: `(applied, s) => ({ sector: s.name, applied, review: null, failed: applied == null || applied.sector !== s.name })`. Так маркеры упавших участков сохраняются, а агентов на участок — один, и за прогон влезает вдвое больше участков.
 

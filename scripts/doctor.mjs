@@ -19,7 +19,7 @@ import { join } from 'node:path'
 const PLUGINS = [
   {
     id: 'compound-engineering',
-    why: 'specialised review agents for the reviewer role (optional)',
+    why: 'review personas the reviewer can use as checklists (optional, 3.x)',
     fix: 'claude plugin marketplace add EveryInc/compound-engineering-plugin && claude plugin install compound-engineering@compound-engineering-plugin',
   },
   {
