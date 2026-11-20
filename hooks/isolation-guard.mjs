@@ -102,6 +102,9 @@ const ROLE_TOOLS = new Set([
   'Read', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'Grep', 'Glob',
   'SendMessage', 'ToolSearch', 'Skill', 'WebSearch', 'WebFetch',
   'TaskCreate', 'TaskGet', 'TaskList', 'TaskUpdate', 'TodoWrite',
+  // Code Mode: teammates work through a script (REPL) and collect its output (Poll); each call
+  // the script makes reaches this guard on its own, under its own tool name and the same agent_type
+  'REPL', 'Poll',
 ])
 const toolAllowed = (tool, extra) =>
   ROLE_TOOLS.has(tool) || extra.some((p) => (p.endsWith('*') ? tool.startsWith(p.slice(0, -1)) : tool === p))

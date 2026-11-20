@@ -115,7 +115,7 @@ if (existsSync(join(root, 'TESTS'))) { // case-insensitive filesystem (macOS def
 for (const tool of ['Monitor', 'LSP', 'Artifact', 'SendUserFile', 'mcp__fs__read_file', 'EnterWorktree']) {
   assert.match(decide(ev('developer-f1', tool, { file_path: 'tests/test_calc.py' }), config) ?? '', /may not use .*allowTools/, tool)
 }
-for (const tool of ['Read', 'Bash', 'SendMessage', 'Skill', 'ToolSearch', 'WebSearch']) {
+for (const tool of ['Read', 'Bash', 'SendMessage', 'Skill', 'ToolSearch', 'WebSearch', 'REPL', 'Poll']) {
   assert.doesNotMatch(decide(ev('developer-f1', tool, { file_path: 'pkg/src/calc.go', command: 'ls', query: 'x' }), config) ?? '', /may not use/, tool)
 }
 const pw = { ...config, rules: { ...config.rules, allowTools: ['mcp__plugin_playwright_playwright__*'] } }
